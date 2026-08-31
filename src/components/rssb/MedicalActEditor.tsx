@@ -3,9 +3,11 @@ import { useSessionStore } from '@/store/session-store';
 import { MEDICAL_ACT_DEFS } from '@/lib/rssb/config';
 import { actAmount, approvedAmount, totalActDeduction, mappedValue } from '@/lib/rssb/cardHelpers';
 import type { Card, MedicalActKey } from '@/lib/rssb/types';
-import { ClipboardCheck, ChevronDown, ChevronUp, MinusCircle } from 'lucide-react';
+import { ClipboardCheck, ChevronDown, ChevronUp, MinusCircle, ShieldOff } from 'lucide-react';
 
 function money(n: number) { return `RWF ${Math.round(n).toLocaleString()}`; }
+
+const NON_COMPLIANCE_REASON = 'Voucher does not comply with RSSB guidelines — full amount deducted.';
 
 export function MedicalActEditor({ card, compact = false }: { card: Card; compact?: boolean }) {
   const mapping = useSessionStore(s => s.mapping);
@@ -29,18 +31,61 @@ export function MedicalActEditor({ card, compact = false }: { card: Card; compac
     updateCard(card.id, { actReasons: { ...(card.actReasons || {}), [act]: reason } });
   }
 
+  // Non-compliance: deduct 100% of every billed act at once, tagging each
+  // with a standard reason, and flag the voucher as fraud (user request).
+  const isFullyDeducted = MEDICAL_ACT_DEFS.every(def => {
+    const billed = actAmount(card, def.key, mapping);
+    const deducted = Number(card.actDeductions?.[def.key]) || 0;
+    return billed <= 0 || deducted >= billed;
+  }) && MEDICAL_ACT_DEFS.some(def => actAmount(card, def.key, mapping) > 0);
+
+  function markNonCompliant() {
+    const nextDeductions = { ...(card.actDeductions || {}) };
+    const nextReasons = { ...(card.actReasons || {}) };
+    let total = 0;
+    MEDICAL_ACT_DEFS.forEach(def => {
+      const billed = actAmount(card, def.key, mapping);
+      if (billed > 0) {
+        nextDeductions[def.key] = billed;
+        nextReasons[def.key] = NON_COMPLIANCE_REASON;
+        total += billed;
+      }
+    });
+    updateCard(card.id, {
+      actDeductions: nextDeductions,
+      actReasons: nextReasons,
+      deduction: total,
+      classifications: { ...card.classifications, fraud: true },
+      comment: card.comment?.trim() ? card.comment : NON_COMPLIANCE_REASON,
+    });
+  }
+
   return (
     <div className={compact ? 'space-y-2' : 'space-y-3'}>
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Billed acts</h3>
           {!compact && <p className="text-[11px] text-muted-foreground mt-0.5">Select an act to review or deduct only from that act.</p>}
         </div>
-        {linkedInspection.length > 0 && (
-          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-warn-light text-warn-dark border border-warn">
-            <ClipboardCheck className="w-3 h-3" /> {linkedInspection.length} inspection finding{linkedInspection.length > 1 ? 's' : ''}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {linkedInspection.length > 0 && (
+            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-warn-light text-warn-dark border border-warn">
+              <ClipboardCheck className="w-3 h-3" /> {linkedInspection.length} inspection finding{linkedInspection.length > 1 ? 's' : ''}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={markNonCompliant}
+            disabled={isFullyDeducted}
+            title="Deduct 100% of every billed act on this voucher because it does not comply with RSSB guidelines"
+            className={`inline-flex items-center gap-1.5 text-[11px] font-medium rounded-lg px-2.5 py-1.5 border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+              isFullyDeducted ? 'border-danger/30 bg-danger/5 text-danger-dark' : 'border-danger bg-danger/10 text-danger-dark hover:bg-danger/20'
+            }`}
+          >
+            <ShieldOff className="w-3.5 h-3.5" />
+            {isFullyDeducted ? 'Marked non-compliant' : 'Not RSSB compliant — deduct all'}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

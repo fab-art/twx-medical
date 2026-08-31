@@ -16,18 +16,14 @@ interface CellStyle {
   fill?: { fgColor: { rgb: string }; patternType: string };
 }
 
+// Draft sheet used inside the counter-verification and fraud-review
+// workbooks: original uploaded columns plus deduction, comment, and
+// explanation — kept intentionally minimal per RSSB counter verification
+// scope (user request).
 export function draftSheetRows(cards: Card[], mapping: Mapping) {
   return cards.map(c => ({
     ...c.row,
-    status: c.status,
-    pharma_compliance: c.classifications?.pharma ? 'Yes' : 'No',
-    rssb_compliance: c.classifications?.rssb ? 'Yes' : 'No',
-    fraud_activity: c.classifications?.fraud ? 'Yes' : 'No',
-    prescription_date: c.prescriptionDate,
-    facility_override: c.facilityOverride,
     deduction: c.deduction || 0,
-    original_amount: originalAmount(c, mapping),
-    approved_amount: approvedAmount(c, mapping),
     comment: c.comment,
     explanation: c.explanation,
   }));

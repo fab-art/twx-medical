@@ -55,7 +55,7 @@ function activityIconFor(action: AuditAction) {
 
 type StatusFilter = 'all' | 'pending' | 'verified';
 type AdvFilter = 'none' | 'repeated' | 'over40000';
-type SortKey = 'none' | 'facility' | 'doctor' | 'voucher' | 'date' | 'amount';
+type SortKey = 'none' | 'affiliate' | 'patient' | 'voucher' | 'date' | 'amount';
 
 export function DashboardView() {
   const cards = useSessionStore(s => s.cards);
@@ -225,8 +225,8 @@ export function DashboardView() {
       const dir = sortDir === 'asc' ? 1 : -1;
       list = [...list].sort((a, b) => {
         let av: string | number, bv: string | number;
-        if (sortBy === 'facility') { av = helpers.facilityOf(a); bv = helpers.facilityOf(b); }
-        else if (sortBy === 'doctor') { av = helpers.doctorOf(a); bv = helpers.doctorOf(b); }
+        if (sortBy === 'affiliate') { av = String(helpers.mappedValue(a, 'affiliate_name') || ''); bv = String(helpers.mappedValue(b, 'affiliate_name') || ''); }
+        else if (sortBy === 'patient') { av = String(helpers.mappedValue(a, 'patient_name') || ''); bv = String(helpers.mappedValue(b, 'patient_name') || ''); }
         else if (sortBy === 'voucher') { av = helpers.voucherOf(a); bv = helpers.voucherOf(b); }
         else if (sortBy === 'date') { av = helpers.dateOf(a)?.getTime() || 0; bv = helpers.dateOf(b)?.getTime() || 0; }
         else { av = helpers.originalAmount(a) || 0; bv = helpers.originalAmount(b) || 0; }
@@ -859,8 +859,8 @@ export function DashboardView() {
           title={advFilter === 'repeated' ? 'Repeated records are always grouped by patient name' : undefined}
           className="text-xs border border-border rounded-lg px-2.5 py-2 bg-card disabled:opacity-40">
           <option value="none">{advFilter === 'repeated' ? 'Sort: grouped by name' : 'Sort: none'}</option>
-          <option value="facility">Sort by facility</option>
-          <option value="doctor">Sort by doctor</option>
+          <option value="affiliate">Sort by affiliate</option>
+          <option value="patient">Sort by patient name</option>
           <option value="voucher">Sort by voucher no</option>
           <option value="date">Sort by date</option>
           <option value="amount">Sort by claim amount</option>
