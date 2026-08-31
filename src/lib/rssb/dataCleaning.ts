@@ -60,7 +60,7 @@ export function normalizeDateValue(raw: unknown): NormalizeResult {
     if ((m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/))) {
       d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
     } else if ((m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/))) {
-      let a = +m[1], b = +m[2], y = +m[3];
+      const a = +m[1], b = +m[2]; let y = +m[3];
       if (y < 100) y += y < 50 ? 2000 : 1900;
       if (a > 12 && b <= 12) {
         d = new Date(Date.UTC(y, b - 1, a));
