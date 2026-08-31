@@ -63,8 +63,8 @@ export function VerifyView() {
     return <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">No vouchers match the current filter.</div>;
   }
 
-  const original = helpers.originalAmount(currentCard, mapping) ?? 0;
-  const approved = helpers.approvedAmount(currentCard, mapping) ?? original;
+  const original = helpers.originalAmount(currentCard) ?? 0;
+  const approved = helpers.approvedAmount(currentCard) ?? original;
 
   return (
     <div className="max-w-7xl space-y-4">
@@ -94,13 +94,13 @@ export function VerifyView() {
             <div>
               <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Beneficiary information</div>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                <Info label="Beneficiary" value={String(helpers.mappedValue(currentCard, 'patient_name', mapping) || '—')} />
-                <Info label="Affiliation No." value={String(helpers.mappedValue(currentCard, 'rama_number', mapping) || '—')} />
-                <Info label="Voucher date" value={helpers.dateOf(currentCard, mapping)?.toLocaleDateString() || '—'} />
-                <Info label="Sex" value={String(helpers.mappedValue(currentCard, 'gender', mapping) || '—')} />
-                <Info label="Affiliate" value={String(helpers.mappedValue(currentCard, 'affiliate_name', mapping) || '—')} />
-                <Info label="Practitioner" value={helpers.doctorOf(currentCard, mapping) || '—'} />
-                <Info label="Facility" value={helpers.facilityOf(currentCard, mapping) || '—'} />
+                <Info label="Beneficiary" value={String(helpers.mappedValue(currentCard, 'patient_name') || '—')} />
+                <Info label="Affiliation No." value={String(helpers.mappedValue(currentCard, 'rama_number') || '—')} />
+                <Info label="Voucher date" value={helpers.dateOf(currentCard)?.toLocaleDateString() || '—'} />
+                <Info label="Sex" value={String(helpers.mappedValue(currentCard, 'gender') || '—')} />
+                <Info label="Affiliate" value={String(helpers.mappedValue(currentCard, 'affiliate_name') || '—')} />
+                <Info label="Practitioner" value={helpers.doctorOf(currentCard) || '—'} />
+                <Info label="Facility" value={helpers.facilityOf(currentCard) || '—'} />
                 <Info label="Original total" value={`RWF ${original.toLocaleString()}`} />
               </div>
             </div>
@@ -147,7 +147,7 @@ export function VerifyView() {
           <div className="rounded-xl border border-border bg-card p-4 max-h-[62vh] overflow-auto">
             <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Voucher queue</h3>
             <div className="space-y-1">
-              {filteredCards.slice(0, 120).map(c => <button key={c.id} onClick={() => setCurrentIndex(cards.findIndex(x => x.id === c.id))} className={`w-full text-left px-2.5 py-2 rounded-lg text-xs border ${c.id === currentCard.id ? 'border-primary bg-primary/5' : 'border-transparent hover:bg-muted'}`}><div className="flex justify-between gap-2"><span className="truncate">{helpers.voucherOf(c) || `#${c.id + 1}`}</span><span className={c.status === 'verified' ? 'text-primary' : 'text-muted-foreground'}>{c.status}</span></div><div className="truncate text-muted-foreground">{String(helpers.mappedValue(c, 'patient_name', mapping) || 'Unnamed')}</div></button>)}
+              {filteredCards.slice(0, 120).map(c => <button key={c.id} onClick={() => setCurrentIndex(cards.findIndex(x => x.id === c.id))} className={`w-full text-left px-2.5 py-2 rounded-lg text-xs border ${c.id === currentCard.id ? 'border-primary bg-primary/5' : 'border-transparent hover:bg-muted'}`}><div className="flex justify-between gap-2"><span className="truncate">{helpers.voucherOf(c) || `#${c.id + 1}`}</span><span className={c.status === 'verified' ? 'text-primary' : 'text-muted-foreground'}>{c.status}</span></div><div className="truncate text-muted-foreground">{String(helpers.mappedValue(c, 'patient_name') || 'Unnamed')}</div></button>)}
             </div>
           </div>
         </aside>

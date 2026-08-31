@@ -23,10 +23,10 @@ export function VoucherRowDetail({ card, headers: _headers, onUpdateCard, onTogg
         <div className="rounded-xl border border-border bg-card p-3">
           <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Beneficiary summary</h4>
           <div className="space-y-2 text-xs">
-            <div className="flex justify-between gap-2"><span className="text-muted-foreground">Beneficiary</span><span className="font-medium truncate">{String(helpers.mappedValue(card, 'patient_name', mapping) || '—')}</span></div>
-            <div className="flex justify-between gap-2"><span className="text-muted-foreground">Affiliation</span><span className="font-medium truncate">{String(helpers.mappedValue(card, 'rama_number', mapping) || '—')}</span></div>
-            <div className="flex justify-between gap-2"><span className="text-muted-foreground">Voucher date</span><span>{helpers.dateOf(card, mapping)?.toLocaleDateString() || '—'}</span></div>
-            <div className="flex justify-between gap-2"><span className="text-muted-foreground">Facility</span><span className="truncate">{helpers.facilityOf(card, mapping) || '—'}</span></div>
+            <div className="flex justify-between gap-2"><span className="text-muted-foreground">Beneficiary</span><span className="font-medium truncate">{String(helpers.mappedValue(card, 'patient_name') || '—')}</span></div>
+            <div className="flex justify-between gap-2"><span className="text-muted-foreground">Affiliation</span><span className="font-medium truncate">{String(helpers.mappedValue(card, 'rama_number') || '—')}</span></div>
+            <div className="flex justify-between gap-2"><span className="text-muted-foreground">Voucher date</span><span>{helpers.dateOf(card)?.toLocaleDateString() || '—'}</span></div>
+            <div className="flex justify-between gap-2"><span className="text-muted-foreground">Facility</span><span className="truncate">{helpers.facilityOf(card) || '—'}</span></div>
           </div>
         </div>
         <div>
