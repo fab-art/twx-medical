@@ -7,18 +7,15 @@ export interface AnalyticsReportData {
   verified: number;
   pending: number;
   fraudFlagged: number;
-  pharmaFlagged: number;
-  rssbFlagged: number;
   totalOriginal: number;
   totalDeducted: number;
   totalApproved: number;
   verificationRate: number;
   deductionRate: number;
   avgVoucher: number;
-  topFacilities: Array<{ name: string; count: number; total: number; approved: number }>;
-  topDoctors: Array<{ name: string; count: number; total: number }>;
+  actAmounts: Array<{ name: string; total: number }>;
+  patientsByAffiliate: Array<{ name: string; count: number; total: number }>;
   topPatients: Array<{ name: string; count: number; total: number }>;
-  classificationData: Array<{ name: string; value: number }>;
 }
 
 /** Draws a simple horizontal bar chart directly on the PDF canvas (vector, no screenshotting needed). */
@@ -121,8 +118,6 @@ export function buildAnalyticsPdf(
       ['Verified', `${data.verified.toLocaleString()} (${data.verificationRate.toFixed(1)}%)`],
       ['Pending', data.pending.toLocaleString()],
       ['Fraud flagged', data.fraudFlagged.toLocaleString()],
-      ['Medical rule flags', data.pharmaFlagged.toLocaleString()],
-      ['RSSB rule flags', data.rssbFlagged.toLocaleString()],
       ['Total claimed amount', fmtRWF(data.totalOriginal)],
       ['Total deducted', `${fmtRWF(data.totalDeducted)} (${data.deductionRate.toFixed(1)}%)`],
       ['Total approved', fmtRWF(data.totalApproved)],
@@ -132,25 +127,25 @@ export function buildAnalyticsPdf(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   y = (doc as any).lastAutoTable.finalY + 10;
 
-  // ---- Top facilities ----
-  if (data.topFacilities.length) {
+  // ---- Amounts billed by act ----
+  if (data.actAmounts.length) {
     if (y > 240) { doc.addPage(); y = margin; }
     y = drawBarChart(
       doc, margin, y, pageWidth - margin * 2,
-      'Top facilities by claim amount',
-      data.topFacilities.slice(0, 8).map(f => ({ label: f.name, value: f.total })),
+      'Amounts billed by act',
+      data.actAmounts.slice(0, 8).map(a => ({ label: a.name, value: a.total })),
       [15, 118, 110], fmtRWF,
     );
     y += 6;
   }
 
-  // ---- Top doctors ----
-  if (data.topDoctors.length) {
+  // ---- Patients by affiliate ----
+  if (data.patientsByAffiliate.length) {
     if (y > 240) { doc.addPage(); y = margin; }
     y = drawBarChart(
       doc, margin, y, pageWidth - margin * 2,
-      'Top practitioners by voucher count',
-      data.topDoctors.slice(0, 8).map(d => ({ label: d.name, value: d.count })),
+      "Patients by affiliate's affectation",
+      data.patientsByAffiliate.slice(0, 8).map(a => ({ label: a.name, value: a.count })),
       [201, 154, 46], v => v.toLocaleString(),
     );
     y += 6;
@@ -166,27 +161,6 @@ export function buildAnalyticsPdf(
       [124, 58, 237], fmtRWF,
     );
     y += 6;
-  }
-
-  // ---- Classification breakdown table ----
-  if (data.classificationData.length) {
-    if (y > 250) { doc.addPage(); y = margin; }
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(30, 30, 30);
-    doc.text('Classification breakdown', margin, y);
-    y += 3;
-    autoTable(doc, {
-      startY: y,
-      margin: { left: margin, right: margin },
-      theme: 'striped',
-      styles: { fontSize: 9, cellPadding: 2.4 },
-      headStyles: { fillColor: [64, 64, 64], textColor: 255 },
-      head: [['Category', 'Voucher count']],
-      body: data.classificationData.map(d => [d.name, d.value.toLocaleString()]),
-    });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    y = (doc as any).lastAutoTable.finalY + 10;
   }
 
   // ---- Session notes ----

@@ -4,7 +4,7 @@
 
 import * as XLSX from 'xlsx-js-style';
 import { CATEGORY_LABELS } from './matching';
-import { MATCH_CATEGORIES } from './config';
+import { MATCH_CATEGORIES, MEDICAL_ACT_DEFS } from './config';
 import {
   mappedValue, facilityOf, voucherOf, originalAmount, approvedAmount, needsFraudReview, findRowValue, deductionCategories,
 } from './cardHelpers';
@@ -182,23 +182,60 @@ export function buildCounterReportWorkbook(
     ['', '', 'MEDICAL COUNTER VERIFICATION REPORT'],
     [],
     // # column uses the voucher number from the file (voucherOf) — user request #4.
-    ['#', 'N° BENEFICIARY', 'Affiliation Number', 'Affected Act(s)', 'Deduction', 'Act reason / inspection reference'],
+    // Each medical act with a deduction gets its own row, grouped together
+    // under a single merged benefit number / voucher block (user request #5).
+    ['#', 'N° BENEFICIARY', 'Affiliation Number', 'Act', 'Deduction', 'Act reason / inspection reference'],
   ];
   const styleRows = ['title', 'title', 'title', 'title', 'blank', 'title', 'blank', 'header'];
+  const merges: XLSX.Range[] = [];
 
   let totalDiff = 0;
   deducted.forEach((c, i) => {
-    const diff = -(parseFloat(String(c.deduction)) || 0);
-    totalDiff += diff;
-    aoa.push([
-      i + 1,
-      voucherOf(c, mapping) || findRowValue(c, ['papercode', 'voucher', 'code']) || '',
-      mappedValue(c, 'rama_number', mapping) || findRowValue(c, ['ramanumber']) || '',
-      deductionCategories(c).join(', ') || '—',
-      diff,
-      Object.values(c.actReasons || {}).filter(Boolean).join(' | ') || c.explanation || c.comment || '',
-    ]);
-    styleRows.push('data');
+    const voucherLabel = voucherOf(c, mapping) || findRowValue(c, ['papercode', 'voucher', 'code']) || '';
+    const affiliation = mappedValue(c, 'rama_number', mapping) || findRowValue(c, ['ramanumber']) || '';
+
+    // Break the voucher's deduction down into one row per act.
+    const actRows = MEDICAL_ACT_DEFS
+      .filter(def => (Number(c.actDeductions?.[def.key]) || 0) > 0)
+      .map(def => ({
+        label: def.label,
+        amount: Number(c.actDeductions?.[def.key]) || 0,
+        reason: c.actReasons?.[def.key] || '',
+      }));
+
+    // Legacy fallback: a card with a total deduction but no per-act
+    // breakdown still gets a single row so nothing is silently dropped.
+    if (actRows.length === 0) {
+      actRows.push({
+        label: deductionCategories(c).join(', ') || 'General',
+        amount: parseFloat(String(c.deduction)) || 0,
+        reason: c.explanation || c.comment || '',
+      });
+    }
+
+    const startRow = aoa.length;
+    actRows.forEach((act, j) => {
+      const diff = -act.amount;
+      totalDiff += diff;
+      aoa.push([
+        j === 0 ? i + 1 : '',
+        j === 0 ? voucherLabel : '',
+        j === 0 ? affiliation : '',
+        act.label,
+        diff,
+        act.reason,
+      ]);
+      styleRows.push('data');
+    });
+
+    // Merge the #, beneficiary and affiliation columns down the act rows so
+    // every deduction line for this voucher reads as one grouped block.
+    if (actRows.length > 1) {
+      const endRow = aoa.length - 1;
+      merges.push({ s: { r: startRow, c: 0 }, e: { r: endRow, c: 0 } });
+      merges.push({ s: { r: startRow, c: 1 }, e: { r: endRow, c: 1 } });
+      merges.push({ s: { r: startRow, c: 2 }, e: { r: endRow, c: 2 } });
+    }
   });
 
   aoa.push(['Total', '', '', '', totalDiff, '']);
@@ -226,6 +263,7 @@ export function buildCounterReportWorkbook(
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols'] = [{ wch: 6 }, { wch: 18 }, { wch: 20 }, { wch: 28 }, { wch: 15 }, { wch: 42 }];
+  if (merges.length) ws['!merges'] = merges;
   aoa.forEach((row, r) => {
     const kind = styleRows[r];
     row.forEach((_, ci) => {

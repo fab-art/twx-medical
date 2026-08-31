@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSessionStore } from '@/store/session-store';
 import { useCardHelpers } from './use-card-helpers';
 import { MedicalActEditor } from './MedicalActEditor';
-import { CLASSIFICATION_DEFS } from '@/lib/rssb/config';
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Keyboard, Search, SkipForward } from 'lucide-react';
 
 export function VerifyView() {
@@ -99,8 +98,6 @@ export function VerifyView() {
                 <Info label="Voucher date" value={helpers.dateOf(currentCard)?.toLocaleDateString() || '—'} />
                 <Info label="Sex" value={String(helpers.mappedValue(currentCard, 'gender') || '—')} />
                 <Info label="Affiliate" value={String(helpers.mappedValue(currentCard, 'affiliate_name') || '—')} />
-                <Info label="Practitioner" value={helpers.doctorOf(currentCard) || '—'} />
-                <Info label="Facility" value={helpers.facilityOf(currentCard) || '—'} />
                 <Info label="Original total" value={`RWF ${original.toLocaleString()}`} />
               </div>
             </div>
@@ -111,13 +108,13 @@ export function VerifyView() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="rounded-xl border border-border p-4">
-                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Verification findings</div>
-                <div className="flex flex-wrap gap-2">
-                  {CLASSIFICATION_DEFS.map(cl => {
-                    const active = !!currentCard.classifications?.[cl.key];
-                    return <label key={cl.key} className={`text-xs px-2.5 py-1.5 rounded-lg border cursor-pointer ${active ? 'bg-primary text-primary-foreground border-primary' : 'border-border bg-muted'}`}><input type="checkbox" className="sr-only" checked={active} onChange={() => updateCard(currentCard.id, { classifications: { ...currentCard.classifications, [cl.key]: !active } })} />{cl.label}</label>;
-                  })}
-                </div>
+                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Fraud flag</div>
+                <button
+                  onClick={() => updateCard(currentCard.id, { classifications: { ...currentCard.classifications, fraud: !currentCard.classifications?.fraud } })}
+                  className={`text-xs px-2.5 py-1.5 rounded-lg border ${currentCard.classifications?.fraud ? 'bg-danger text-danger-foreground border-danger' : 'border-border bg-muted'}`}
+                >
+                  {currentCard.classifications?.fraud ? 'Flagged as fraud' : 'Flag as fraud'}
+                </button>
                 <textarea value={currentCard.comment} onChange={e => updateCard(currentCard.id, { comment: e.target.value })} placeholder="General counter-verification comment…" rows={4} className="mt-3 w-full rounded-lg border border-border bg-background p-3 text-sm" />
               </div>
               <div className="rounded-xl border border-border p-4">

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, Fragment, useCallback } from 'react';
 import * as XLSX from 'xlsx-js-style';
 import { useSessionStore } from '@/store/session-store';
 import { useCardHelpers } from './use-card-helpers';
-import { AUDIT_ACTION_LABELS, CLASSIFICATION_DEFS, MEDICAL_ACT_DEFS } from '@/lib/rssb/config';
+import { AUDIT_ACTION_LABELS, MEDICAL_ACT_DEFS } from '@/lib/rssb/config';
 import { buildVerifiedWorkbook, buildFilteredWorkbook, buildFilteredCSV, buildTemplateWorkbook, TEMPLATE_COLUMNS, TEMPLATE_COLUMN_LABELS } from '@/lib/rssb/reportGenerators';
 import type { ExportTemplateType, TemplateColumnKey } from '@/lib/rssb/reportGenerators';
 import { VoucherRowDetail } from './VoucherRowDetail';
@@ -92,7 +92,6 @@ export function DashboardView() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [advFilter, setAdvFilter] = useState<AdvFilter>('none');
   const [classificationFilter, setClassificationFilter] = useState<string>('all');
-  const [doctorFilter, setDoctorFilter] = useState<string>('all');
   const [actFilter, setActFilter] = useState<string>('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -128,7 +127,6 @@ export function DashboardView() {
     if (!payload) return;
     if (payload.search) setSearch(payload.search);
     if (payload.classification) setClassificationFilter(payload.classification);
-    if (payload.doctor) setDoctorFilter(payload.doctor);
     if (payload.status) setStatusFilter(payload.status);
     if (payload.dateFrom) setDateFrom(payload.dateFrom);
     if (payload.dateTo) setDateTo(payload.dateTo);
@@ -149,16 +147,6 @@ export function DashboardView() {
   const [drawerCardId, setDrawerCardId] = useState<number | null>(null);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [exportTemplatesOpen, setExportTemplatesOpen] = useState(false);
-
-  // Unique, sorted list of doctors present in the uploaded file — powers the doctor filter dropdown.
-  const doctorOptions = useMemo(() => {
-    const set = new Set<string>();
-    cards.forEach(c => {
-      const d = String(helpers.doctorOf(c) || '').trim();
-      if (d) set.add(d);
-    });
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [cards, helpers]);
 
   // Pre-fill the date range filter with the min/max claim dates found in the uploaded file,
   // so the dashboard opens already scoped to the period covered by the data.
@@ -211,7 +199,6 @@ export function DashboardView() {
     if (advFilter === 'repeated') list = list.filter(c => repeatedIds.has(c.id));
     if (advFilter === 'over40000') list = list.filter(c => (helpers.originalAmount(c) || 0) > 40000);
     if (classificationFilter !== 'all') list = list.filter(c => c.classifications?.[classificationFilter as keyof typeof c.classifications]);
-    if (doctorFilter !== 'all') list = list.filter(c => String(helpers.doctorOf(c) || '').trim() === doctorFilter);
     if (actFilter !== 'all') list = list.filter(c => deductionCategories(c).includes(actFilter));
     if (dateFrom) {
       const from = new Date(dateFrom);
@@ -258,7 +245,7 @@ export function DashboardView() {
       });
     }
     return list;
-  }, [cards, statusFilter, advFilter, classificationFilter, doctorFilter, actFilter, dateFrom, dateTo, amountMin, amountMax, sortBy, sortDir, search, repeatedIds, helpers]);
+  }, [cards, statusFilter, advFilter, classificationFilter, actFilter, dateFrom, dateTo, amountMin, amountMax, sortBy, sortDir, search, repeatedIds, helpers]);
 
   const filteredTotalAmount = useMemo(
     () => filteredCards.reduce((s, c) => s + (helpers.originalAmount(c) || 0), 0),
@@ -423,19 +410,16 @@ export function DashboardView() {
 
   // Deduction breakdown by category
   const deductionBreakdown = useMemo(() => {
-    let pharmaAmount = 0; let pharmaCount = 0;
-    let rssbAmount = 0; let rssbCount = 0;
     let fraudAmount = 0; let fraudCount = 0;
+    let otherAmount = 0; let otherCount = 0;
     cards.forEach(c => {
       const ded = parseFloat(String(c.deduction)) || 0;
       if (ded <= 0) return;
       if (c.classifications?.fraud) { fraudAmount += ded; fraudCount++; }
-      else if (c.classifications?.rssb) { rssbAmount += ded; rssbCount++; }
-      else if (c.classifications?.pharma) { pharmaAmount += ded; pharmaCount++; }
-      // Uncategorized deductions are not shown in the breakdown
+      else { otherAmount += ded; otherCount++; }
     });
-    const totalDeductions = pharmaAmount + rssbAmount + fraudAmount;
-    return { pharmaAmount, pharmaCount, rssbAmount, rssbCount, fraudAmount, fraudCount, totalDeductions };
+    const totalDeductions = fraudAmount + otherAmount;
+    return { fraudAmount, fraudCount, otherAmount, otherCount, totalDeductions };
   }, [cards]);
 
   // Verification donut chart data
@@ -548,13 +532,12 @@ export function DashboardView() {
     toast({ title: 'All suggestions applied', description: `${smartSuggestions.length} deduction(s) applied.` });
   }
 
-  const hasActiveFilter = statusFilter !== 'all' || advFilter !== 'none' || classificationFilter !== 'all' || doctorFilter !== 'all' || actFilter !== 'all' || dateFrom || dateTo || !!amountMin || !!amountMax || search;
+  const hasActiveFilter = statusFilter !== 'all' || advFilter !== 'none' || classificationFilter !== 'all' || actFilter !== 'all' || dateFrom || dateTo || !!amountMin || !!amountMax || search;
 
   function clearFilters() {
     setStatusFilter('all');
     setAdvFilter('none');
     setClassificationFilter('all');
-    setDoctorFilter('all');
     setActFilter('all');
     setDateFrom('');
     setDateTo('');
@@ -706,22 +689,6 @@ export function DashboardView() {
               <span className="text-xs text-muted-foreground">Total Deductions</span>
               <span className="text-lg font-bold tabular-nums">{deductionBreakdown.totalDeductions.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
             </div>
-            {/* Pharmacological */}
-            <DeductionBar
-              label="Pharmacological"
-              amount={deductionBreakdown.pharmaAmount}
-              count={deductionBreakdown.pharmaCount}
-              pct={deductionBreakdown.totalDeductions > 0 ? (deductionBreakdown.pharmaAmount / deductionBreakdown.totalDeductions) * 100 : 0}
-              colorClass="bg-primary"
-            />
-            {/* RSSB */}
-            <DeductionBar
-              label="RSSB"
-              amount={deductionBreakdown.rssbAmount}
-              count={deductionBreakdown.rssbCount}
-              pct={deductionBreakdown.totalDeductions > 0 ? (deductionBreakdown.rssbAmount / deductionBreakdown.totalDeductions) * 100 : 0}
-              colorClass="bg-warn"
-            />
             {/* Fraud */}
             <DeductionBar
               label="Fraud"
@@ -729,6 +696,14 @@ export function DashboardView() {
               count={deductionBreakdown.fraudCount}
               pct={deductionBreakdown.totalDeductions > 0 ? (deductionBreakdown.fraudAmount / deductionBreakdown.totalDeductions) * 100 : 0}
               colorClass="bg-danger"
+            />
+            {/* Other deductions */}
+            <DeductionBar
+              label="Other deductions"
+              amount={deductionBreakdown.otherAmount}
+              count={deductionBreakdown.otherCount}
+              pct={deductionBreakdown.totalDeductions > 0 ? (deductionBreakdown.otherAmount / deductionBreakdown.totalDeductions) * 100 : 0}
+              colorClass="bg-warn"
             />
           </div>
         </div>
@@ -814,7 +789,7 @@ export function DashboardView() {
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Filter & Search</span>
           {hasActiveFilter && (
             <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold tabular-nums">
-              {[statusFilter !== 'all', advFilter !== 'none', classificationFilter !== 'all', doctorFilter !== 'all', actFilter !== 'all', !!dateFrom, !!dateTo, !!amountMin, !!amountMax, !!search.trim()].filter(Boolean).length}
+              {[statusFilter !== 'all', advFilter !== 'none', classificationFilter !== 'all', actFilter !== 'all', !!dateFrom, !!dateTo, !!amountMin, !!amountMax, !!search.trim()].filter(Boolean).length}
             </span>
           )}
           {hasActiveFilter && (
@@ -854,20 +829,15 @@ export function DashboardView() {
             </button>
           ))}
         </div>
-        <select value={classificationFilter} onChange={e => setClassificationFilter(e.target.value)} aria-label="Filter by deduction category"
+        <select value={classificationFilter} onChange={e => setClassificationFilter(e.target.value)} aria-label="Filter by fraud flag"
           className="text-xs border border-border rounded-lg px-2.5 py-2 bg-card">
-          <option value="all">All deduction categories</option>
-          {CLASSIFICATION_DEFS.map(c => (<option key={c.key} value={c.key}>{c.label}</option>))}
+          <option value="all">All vouchers</option>
+          <option value="fraud">Flagged as fraud</option>
         </select>
-        <select value={doctorFilter} onChange={e => setDoctorFilter(e.target.value)} aria-label="Filter by doctor"
-          className="text-xs border border-border rounded-lg px-2.5 py-2 bg-card max-w-[10rem] truncate" disabled={doctorOptions.length === 0}>
         <select value={actFilter} onChange={e => setActFilter(e.target.value)} aria-label="Filter by deducted act"
           className="text-xs border border-border rounded-lg px-2.5 py-2 bg-card max-w-[12rem] truncate">
           <option value="all">All deducted acts</option>
           {MEDICAL_ACT_DEFS.map(a => (<option key={a.key} value={a.label}>{a.label}</option>))}
-        </select>
-          <option value="all">All doctors</option>
-          {doctorOptions.map(d => (<option key={d} value={d}>{d}</option>))}
         </select>
         {/* Divider */}
         <span className="hidden sm:block w-px h-6 bg-border" aria-hidden="true" />
@@ -1003,11 +973,11 @@ export function DashboardView() {
               <th className="px-3 py-2 font-medium">#</th>
               <th className="px-3 py-2 font-medium">Voucher No</th>
               <th className="px-3 py-2 font-medium">Patient</th>
-              <th className="px-3 py-2 font-medium">Dispensed</th>
+              <th className="px-3 py-2 font-medium">Date</th>
               <th className="px-3 py-2 font-medium">Amount</th>
               <th className="px-3 py-2 font-medium">Approved</th>
               <th className="px-3 py-2 font-medium">Status</th>
-              <th className="px-3 py-2 font-medium">Categories</th>
+              <th className="px-3 py-2 font-medium">Flags</th>
               <th className="px-3 py-2"></th>
             </tr>
           </thead>
@@ -1037,7 +1007,7 @@ export function DashboardView() {
                     <td className="px-3 py-2 text-muted-foreground">{c.id + 1}</td>
                     <td className="px-3 py-2 font-medium">{helpers.voucherOf(c) || '—'}</td>
                     <td className="px-3 py-2">{String(helpers.mappedValue(c, 'patient_name') || '—')}</td>
-                    <td className="px-3 py-2">{helpers.dispensingDateOf(c)?.toLocaleDateString() ?? '—'}</td>
+                    <td className="px-3 py-2">{helpers.dateOf(c)?.toLocaleDateString() ?? '—'}</td>
                     <td className="px-3 py-2">{helpers.originalAmount(c)?.toLocaleString() ?? '—'}</td>
                     <td className="px-3 py-2">{helpers.approvedAmount(c)?.toLocaleString() ?? '—'}</td>
                     <td className="px-3 py-2">
@@ -1047,9 +1017,9 @@ export function DashboardView() {
                       </span>
                     </td>
                     <td className="px-3 py-2 space-x-1">
-                      {CLASSIFICATION_DEFS.filter(cl => c.classifications?.[cl.key]).map(cl => (
-                        <span key={cl.key} className={`text-xs px-2 py-0.5 rounded-full ${cl.key === 'fraud' ? 'bg-danger-light text-danger-dark' : 'bg-muted border border-border'}`}>{cl.label}</span>
-                      ))}
+                      {c.classifications?.fraud && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-danger-light text-danger-dark">Fraud</span>
+                      )}
                       {helpers.needsFraudReview(c) && <span className="text-xs px-2 py-0.5 rounded-full bg-danger-light text-danger-dark">Needs review</span>}
                       {repeatedIds.has(c.id) && <span className="text-xs px-2 py-0.5 rounded-full bg-warn-light text-warn-dark">Repeat</span>}
                     </td>

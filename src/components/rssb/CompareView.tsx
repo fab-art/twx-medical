@@ -437,14 +437,14 @@ export function CompareView() {
         </div>
         <h2 className="text-lg font-semibold mb-1">Not enough sessions to compare</h2>
         <p className="text-sm text-muted-foreground mb-5 max-w-md">
-          You need at least 2 saved sessions to compare. Upload another pharmacy file first.
+          You need at least 2 saved sessions to compare. Upload another file first.
         </p>
         <button
           onClick={() => setStage('upload')}
           className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium px-4 py-2 hover:opacity-90 transition-opacity"
         >
           <FilePlus2 className="w-4 h-4" />
-          Upload pharmacy file
+          Upload file
         </button>
       </div>
     );
@@ -857,7 +857,7 @@ function SessionPickerCard({
           </div>
           <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-muted-foreground">
             <span className="truncate" title={meta.fileName}>File: {meta.fileName || '—'}</span>
-            <span className="truncate" title={meta.pharmacyName}>Pharmacy: {meta.pharmacyName || '—'}</span>
+            <span className="truncate" title={meta.pharmacyName}>Facility: {meta.pharmacyName || '—'}</span>
             <span>Vouchers: <span className="text-foreground tabular-nums">{meta.voucherCount}</span></span>
             <span>Verified: <span className="text-foreground tabular-nums">{meta.verifiedCount}</span></span>
             <span>Fraud: <span className="text-foreground tabular-nums">{meta.fraudCount}</span></span>

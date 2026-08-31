@@ -120,7 +120,7 @@ export function HospitalView() {
         </h2>
         <p className="text-sm text-muted-foreground mb-4">
           Upload one or more hospital beneficiary files (e.g. CHUK, La Médicale). Each file is
-          auto-mapped and normalized independently, then matched against the pharmacy vouchers
+          auto-mapped and normalized independently, then matched against the medical vouchers
           already loaded ({cards.length} vouchers from &quot;{fileName}&quot;).
         </p>
         <label className="inline-flex items-center gap-2 cursor-pointer text-sm font-medium border border-dashed border-border rounded-lg px-4 py-2.5 bg-muted hover:bg-accent transition-colors">
@@ -200,7 +200,7 @@ export function HospitalView() {
           </h2>
           <p className="text-xs text-muted-foreground mb-4">
             Normalizes beneficiary IDs (strips &quot;Nr&quot; prefixes, leading zeros, whitespace), names
-            (order-invariant, punctuation-stripped), and sex codes, then scores every pharmacy
+            (order-invariant, punctuation-stripped), and sex codes, then scores every
             voucher against all hospital records using weighted evidence. Results land in four
             buckets: Clean Match, Needs Review, Fraud Risk, and Not Found.
           </p>

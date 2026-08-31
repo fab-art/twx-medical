@@ -2,16 +2,16 @@ import { useMemo } from 'react';
 import { useSessionStore } from '@/store/session-store';
 import { useCardHelpers } from './use-card-helpers';
 import { CATEGORY_LABELS } from '@/lib/rssb/matching';
-import { CLASSIFICATION_DEFS, MATCH_CATEGORIES } from '@/lib/rssb/config';
+import { MATCH_CATEGORIES, MEDICAL_ACT_DEFS } from '@/lib/rssb/config';
+import { actAmount } from '@/lib/rssb/cardHelpers';
 import { buildAnalyticsPdf } from '@/lib/rssb/analyticsReport';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, AreaChart, Area, RadialBarChart, RadialBar,
-  LineChart, Line, ComposedChart,
+  PieChart, Pie, Cell, Legend, AreaChart, Area,
 } from 'recharts';
 import {
   TrendingUp, TrendingDown, DollarSign, Users, ShieldAlert, CheckCircle2,
-  Activity, Building2, Stethoscope, AlertCircle, GitCompare, FileDown, ArrowUpRight, type LucideIcon,
+  Activity, GitCompare, FileDown, ArrowUpRight, type LucideIcon,
 } from 'lucide-react';
 import type { MatchCategory } from '@/lib/rssb/types';
 import { useToast } from '@/hooks/use-toast';
@@ -45,8 +45,6 @@ export function AnalyticsView() {
     const verified = cards.filter(c => c.status === 'verified').length;
     const pending = total - verified;
     const fraudFlagged = cards.filter(c => c.classifications?.fraud).length;
-    const pharmaFlagged = cards.filter(c => c.classifications?.pharma).length;
-    const rssbFlagged = cards.filter(c => c.classifications?.rssb).length;
     const totalOriginal = cards.reduce((s, c) => s + (helpers.originalAmount(c) || 0), 0);
     const totalDeducted = cards.reduce((s, c) => s + (parseFloat(String(c.deduction)) || 0), 0);
     const totalApproved = totalOriginal - totalDeducted;
@@ -60,18 +58,23 @@ export function AnalyticsView() {
       });
     }
 
-    // Amount by facility (top 10)
-    const facilityAmounts: Record<string, { count: number; total: number; approved: number }> = {};
+    // Amounts billed by medical act
+    const actAmounts = MEDICAL_ACT_DEFS
+      .map(def => ({ name: def.label, total: cards.reduce((s, c) => s + actAmount(c, def.key, helpers.mapping), 0) }))
+      .filter(d => d.total > 0)
+      .sort((a, b) => b.total - a.total);
+
+    // Patients grouped by their affiliate's affectation
+    const affiliateAmounts: Record<string, { count: number; total: number }> = {};
     cards.forEach(c => {
-      const f = helpers.facilityOf(c) || 'Unknown';
-      if (!facilityAmounts[f]) facilityAmounts[f] = { count: 0, total: 0, approved: 0 };
-      facilityAmounts[f].count += 1;
-      facilityAmounts[f].total += helpers.originalAmount(c) || 0;
-      facilityAmounts[f].approved += helpers.approvedAmount(c) || 0;
+      const a = String(helpers.mappedValue(c, 'affiliate_name') || 'Unassigned').trim() || 'Unassigned';
+      if (!affiliateAmounts[a]) affiliateAmounts[a] = { count: 0, total: 0 };
+      affiliateAmounts[a].count += 1;
+      affiliateAmounts[a].total += helpers.originalAmount(c) || 0;
     });
-    const topFacilities = Object.entries(facilityAmounts)
+    const patientsByAffiliate = Object.entries(affiliateAmounts)
       .map(([name, v]) => ({ name, ...v }))
-      .sort((a, b) => b.total - a.total)
+      .sort((a, b) => b.count - a.count)
       .slice(0, 10);
 
     // Daily amount trend
@@ -105,21 +108,6 @@ export function AnalyticsView() {
       if (b) { b.count += 1; b.total += amt; }
     });
 
-    // Top doctors by voucher count
-    const doctorCounts: Record<string, { count: number; total: number }> = {};
-    cards.forEach(c => {
-      const d = helpers.doctorOf(c);
-      if (d) {
-        if (!doctorCounts[d]) doctorCounts[d] = { count: 0, total: 0 };
-        doctorCounts[d].count += 1;
-        doctorCounts[d].total += helpers.originalAmount(c) || 0;
-      }
-    });
-    const topDoctors = Object.entries(doctorCounts)
-      .map(([name, v]) => ({ name, ...v }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-
     // Top patients by total amount billed
     const patientAmounts: Record<string, { count: number; total: number }> = {};
     cards.forEach(c => {
@@ -134,14 +122,6 @@ export function AnalyticsView() {
       .sort((a, b) => b.total - a.total)
       .slice(0, 10);
 
-    // Classification breakdown
-    const classificationData = [
-      { name: 'Pharmacological', value: pharmaFlagged, color: CHART_COLORS[0] },
-      { name: 'RSSB Rules', value: rssbFlagged, color: CHART_COLORS[1] },
-      { name: 'Fraud Activity', value: fraudFlagged, color: CHART_COLORS[2] },
-      { name: 'Clean', value: total - pharmaFlagged - rssbFlagged - fraudFlagged, color: CHART_COLORS[5] },
-    ].filter(d => d.value > 0);
-
     // Match category data
     const matchData = MATCH_CATEGORIES.map(cat => ({
       name: CATEGORY_LABELS[cat],
@@ -150,10 +130,10 @@ export function AnalyticsView() {
     })).filter(d => d.value > 0);
 
     return {
-      total, verified, pending, fraudFlagged, pharmaFlagged, rssbFlagged,
+      total, verified, pending, fraudFlagged,
       totalOriginal, totalDeducted, totalApproved,
-      matchCounts, topFacilities, dailyTrend, buckets, topDoctors, topPatients,
-      classificationData, matchData,
+      matchCounts, actAmounts, patientsByAffiliate, dailyTrend, buckets, topPatients,
+      matchData,
       avgVoucher: total ? totalOriginal / total : 0,
       verificationRate: total ? (verified / total) * 100 : 0,
       deductionRate: totalOriginal ? (totalDeducted / totalOriginal) * 100 : 0,
@@ -209,22 +189,23 @@ export function AnalyticsView() {
 
       {/* Charts grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Claims by Facility" subtitle="Top 10 facilities by total claim amount" icon={Building2}>
-          <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={data.topFacilities} layout="vertical" margin={{ left: 10, right: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-              <XAxis type="number" className="text-xs" tick={{ fontSize: 11 }} />
-              <YAxis type="category" dataKey="name" width={130} className="text-xs" tick={{ fontSize: 10 }} />
-              <Tooltip
-                contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
-                formatter={(v: number) => `RWF ${v.toLocaleString()}`}
-              />
-              <Bar dataKey="total" fill={CHART_COLORS[0]} radius={[0, 4, 4, 0]} name="Total" cursor="pointer"
-                onClick={(d: { name?: string }) => d?.name && goToDashboardFiltered(setStage, { search: d.name })} />
-              <Bar dataKey="approved" fill={CHART_COLORS[5]} radius={[0, 4, 4, 0]} name="Approved" cursor="pointer"
-                onClick={(d: { name?: string }) => d?.name && goToDashboardFiltered(setStage, { search: d.name })} />
-            </ComposedChart>
-          </ResponsiveContainer>
+        <ChartCard title="Amounts Billed by Act" subtitle="Total billed amount per medical act" icon={Activity}>
+          {data.actAmounts.length === 0 ? (
+            <EmptyChart />
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={data.actAmounts} layout="vertical" margin={{ left: 10, right: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                <XAxis type="number" className="text-xs" tick={{ fontSize: 11 }} />
+                <YAxis type="category" dataKey="name" width={130} className="text-xs" tick={{ fontSize: 10 }} />
+                <Tooltip
+                  contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
+                  formatter={(v: number) => [`RWF ${v.toLocaleString()}`, 'Billed']}
+                />
+                <Bar dataKey="total" fill={CHART_COLORS[0]} radius={[0, 4, 4, 0]} name="Billed" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </ChartCard>
 
         <ChartCard title="Daily Claim Trend" subtitle="Voucher count and total amount over time — click a point to view that day" icon={TrendingUp}>
@@ -283,18 +264,18 @@ export function AnalyticsView() {
           )}
         </ChartCard>
 
-        <ChartCard title="Top Practitioners" subtitle="By voucher count" icon={Stethoscope}>
-          {data.topDoctors.length === 0 ? (
+        <ChartCard title="Patients by Affiliate" subtitle="Breakdown by affiliate's affectation — click a bar to view those vouchers" icon={Users}>
+          {data.patientsByAffiliate.length === 0 ? (
             <EmptyChart />
           ) : (
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={data.topDoctors} layout="vertical" margin={{ left: 10, right: 20 }}>
+              <BarChart data={data.patientsByAffiliate} layout="vertical" margin={{ left: 10, right: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis type="number" className="text-xs" tick={{ fontSize: 11 }} allowDecimals={false} />
                 <YAxis type="category" dataKey="name" width={140} className="text-xs" tick={{ fontSize: 10 }} />
                 <Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
                 <Bar dataKey="count" fill={CHART_COLORS[4]} radius={[0, 4, 4, 0]} name="Vouchers" cursor="pointer"
-                  onClick={(d: { name?: string }) => d?.name && goToDashboardFiltered(setStage, { doctor: d.name })} />
+                  onClick={(d: { name?: string }) => d?.name && goToDashboardFiltered(setStage, { search: d.name })} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -320,33 +301,6 @@ export function AnalyticsView() {
           )}
         </ChartCard>
 
-        <ChartCard title="Classification Breakdown" subtitle="Deduction categories across all vouchers — click a slice to view those vouchers" icon={AlertCircle}>
-          {data.classificationData.length === 0 ? (
-            <EmptyChart />
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={data.classificationData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90}
-                  label={(e: { name: string; value: number }) => `${e.name}: ${e.value}`}
-                  cursor="pointer"
-                  onClick={(e: { name?: string }) => {
-                    const map: Record<string, string> = { 'Pharmacological': 'pharma', 'RSSB Rules': 'rssb', 'Fraud Activity': 'fraud' };
-                    const key = e?.name ? map[e.name] : undefined;
-                    if (key) goToDashboardFiltered(setStage, { classification: key });
-                  }}
-                >
-                  {data.classificationData.map((d, i) => (
-                    <Cell key={i} fill={d.color} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </ChartCard>
-
         {data.matchData.length > 0 && (
           <ChartCard title="Match Results" subtitle="Hospital matching outcome distribution" icon={GitCompare}>
             <ResponsiveContainer width="100%" height={300}>
@@ -363,24 +317,6 @@ export function AnalyticsView() {
           </ChartCard>
         )}
       </div>
-
-      {/* Verification progress */}
-      <ChartCard title="Verification Progress" subtitle={`${data.verified} of ${data.total} vouchers verified`} icon={CheckCircle2}>
-        <div className="flex items-center gap-6">
-          <ResponsiveContainer width="50%" height={200}>
-            <RadialBarChart innerRadius="60%" outerRadius="100%" data={[{ name: 'Verified', value: data.verificationRate, fill: CHART_COLORS[0] }]} startAngle={90} endAngle={-270}>
-              <RadialBar background dataKey="value" cornerRadius={10} />
-            </RadialBarChart>
-          </ResponsiveContainer>
-          <div className="flex-1 space-y-3">
-            <ProgressRow label="Verified" value={data.verified} total={data.total} color="bg-primary" />
-            <ProgressRow label="Pending" value={data.pending} total={data.total} color="bg-warn" />
-            <ProgressRow label="Fraud flagged" value={data.fraudFlagged} total={data.total} color="bg-danger" />
-            <ProgressRow label="Pharmacological" value={data.pharmaFlagged} total={data.total} color="bg-chart-4" />
-            <ProgressRow label="RSSB Rules" value={data.rssbFlagged} total={data.total} color="bg-chart-5" />
-          </div>
-        </div>
-      </ChartCard>
     </div>
   );
 }
@@ -421,21 +357,6 @@ function ChartCard({ title, subtitle, icon: Icon, children }: { title: string; s
         </div>
       </div>
       {children}
-    </div>
-  );
-}
-
-function ProgressRow({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
-  const pct = total ? (value / total) * 100 : 0;
-  return (
-    <div>
-      <div className="flex items-center justify-between text-xs mb-1">
-        <span className="text-muted-foreground">{label}</span>
-        <span className="font-medium">{value} ({pct.toFixed(0)}%)</span>
-      </div>
-      <div className="h-2 rounded-full bg-muted overflow-hidden">
-        <div className={`h-full rounded-full transition-all duration-500 ${color}`} style={{ width: `${pct}%` }} />
-      </div>
     </div>
   );
 }

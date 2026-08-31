@@ -2,12 +2,13 @@ import { useMemo, useCallback } from 'react';
 import { useSessionStore } from '@/store/session-store';
 import { useCardHelpers } from './use-card-helpers';
 import { useCountUpFormatted } from './use-count-up';
-import { FIELD_DEFS } from '@/lib/rssb/config';
+import { FIELD_DEFS, MEDICAL_ACT_DEFS } from '@/lib/rssb/config';
+import { actAmount } from '@/lib/rssb/cardHelpers';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, LineChart, Line,
+  LineChart, Line,
 } from 'recharts';
-import { FileSpreadsheet, Calendar, Users, Building2, Stethoscope, Coins, AlertTriangle, UserX, Copy, TrendingUp, CheckCircle2, Search } from 'lucide-react';
+import { FileSpreadsheet, Calendar, Users, Building2, Coins, AlertTriangle, UserX, Copy, TrendingUp, CheckCircle2, Search } from 'lucide-react';
 
 const CHART_COLORS = ['#0f766e', '#c99a2e', '#b91c1c', '#0284c7', '#7c3aed', '#db2777', '#16a34a', '#ea580c'];
 
@@ -19,7 +20,7 @@ export function SummaryView() {
   const setStage = useSessionStore(s => s.setStage);
   const helpers = useCardHelpers();
 
-  const stats = useMemo<{ totalAmount: number; amountCount: number; missingAmount: number; minDate: Date | null; maxDate: Date | null; patients: number; facilities: number; doctors: number }>(() => {
+  const stats = useMemo<{ totalAmount: number; amountCount: number; missingAmount: number; minDate: Date | null; maxDate: Date | null; patients: number; affiliates: number }>(() => {
     let totalAmount = 0;
     let amountCount = 0;
     let missingAmount = 0;
@@ -42,31 +43,37 @@ export function SummaryView() {
     }
 
     const patients = new Set<string>();
-    const facilities = new Set<string>();
-    const doctors = new Set<string>();
+    const affiliates = new Set<string>();
     cards.forEach(c => {
       const p = String(helpers.mappedValue(c, 'patient_name') || '').trim().toUpperCase();
       if (p) patients.add(p);
-      const f = String(helpers.mappedValue(c, 'facility_name') || '').trim().toUpperCase();
-      if (f) facilities.add(f);
-      const d = String(helpers.mappedValue(c, 'doctor_name') || '').trim().toUpperCase();
-      if (d) doctors.add(d);
+      const a = String(helpers.mappedValue(c, 'affiliate_name') || '').trim().toUpperCase();
+      if (a) affiliates.add(a);
     });
 
     return {
       totalAmount, amountCount, missingAmount, minDate, maxDate,
-      patients: patients.size, facilities: facilities.size, doctors: doctors.size,
+      patients: patients.size, affiliates: affiliates.size,
     };
   }, [cards, helpers]);
 
-  // Chart data: vouchers per facility (top 8)
-  const facilityData = useMemo(() => {
+
+  // Chart data: amounts billed per medical act
+  const actAmountsData = useMemo(() => {
+    return MEDICAL_ACT_DEFS
+      .map(def => ({ name: def.label, total: cards.reduce((s, c) => s + actAmount(c, def.key, mapping), 0) }))
+      .filter(d => d.total > 0)
+      .sort((a, b) => b.total - a.total);
+  }, [cards, mapping]);
+
+  // Chart data: patients grouped by their affiliate's affectation
+  const affiliateData = useMemo(() => {
     const counts: Record<string, { count: number; total: number }> = {};
     cards.forEach(c => {
-      const f = helpers.facilityOf(c) || 'Unknown';
-      if (!counts[f]) counts[f] = { count: 0, total: 0 };
-      counts[f].count += 1;
-      counts[f].total += helpers.originalAmount(c) || 0;
+      const a = String(helpers.mappedValue(c, 'affiliate_name') || 'Unassigned').trim() || 'Unassigned';
+      if (!counts[a]) counts[a] = { count: 0, total: 0 };
+      counts[a].count += 1;
+      counts[a].total += helpers.originalAmount(c) || 0;
     });
     return Object.entries(counts)
       .map(([name, v]) => ({ name, count: v.count, total: v.total }))
@@ -106,16 +113,6 @@ export function SummaryView() {
       if (b) b.count += 1;
     });
     return buckets;
-  }, [cards, helpers]);
-
-  // Patient type breakdown
-  const patientTypeData = useMemo(() => {
-    const counts: Record<string, number> = {};
-    cards.forEach(c => {
-      const t = String(helpers.mappedValue(c, 'patient_type') || '').trim();
-      if (t) counts[t] = (counts[t] || 0) + 1;
-    });
-    return Object.entries(counts).map(([name, value]) => ({ name, value }));
   }, [cards, helpers]);
 
   // Data quality insights — anomaly detections from the medical data
@@ -171,9 +168,6 @@ export function SummaryView() {
     // #4 Missing dates
     const missingDates = cards.filter(c => helpers.dateOf(c) === null).length;
 
-    // #5 Missing facility
-    const missingFacility = cards.filter(c => !helpers.facilityOf(c)).length;
-
     // #7 Duplicate voucher numbers
     const voucherCounts: Record<string, number> = {};
     cards.forEach(c => {
@@ -187,7 +181,6 @@ export function SummaryView() {
       { key: 'high-value', icon: Coins, title: 'High-value vouchers', count: highValueVouchers, description: 'Vouchers with an amount above RWF 40,000', tone: 'warn', targetStage: 'dashboard' },
       { key: 'missing-amounts', icon: AlertTriangle, title: 'Missing amounts', count: missingAmounts, description: 'Vouchers without a readable amount', tone: 'danger', targetStage: 'clean' },
       { key: 'missing-dates', icon: Calendar, title: 'Missing dates', count: missingDates, description: 'Vouchers without a parseable date', tone: 'danger', targetStage: 'clean' },
-      { key: 'missing-facility', icon: Building2, title: 'Missing facility', count: missingFacility, description: 'Vouchers without a facility name', tone: 'warn', targetStage: 'dashboard' },
       { key: 'missing-patient', icon: UserX, title: 'Missing patient name', count: missingPatientName, description: 'Vouchers without a patient name', tone: 'warn', targetStage: 'clean' },
       { key: 'duplicate-vouchers', icon: Copy, title: 'Duplicate voucher numbers', count: duplicateVoucherGroups, description: 'Voucher numbers reused across multiple records', tone: 'danger', targetStage: 'dashboard' },
       { key: 'amount-outliers', icon: TrendingUp, title: 'Amount outliers', count: amountOutliers, description: 'Vouchers exceeding 3× the median amount', tone: 'warn', targetStage: 'fraud' },
@@ -216,8 +209,7 @@ export function SummaryView() {
       const hasPatient = !!String(helpers.mappedValue(c, 'patient_name') || '').trim();
       const hasDate = !!helpers.dateOf(c);
       const hasAmount = helpers.originalAmount(c) !== null;
-      const hasFacility = !!helpers.facilityOf(c);
-      if (hasPatient && hasDate && hasAmount && hasFacility) complete++;
+      if (hasPatient && hasDate && hasAmount) complete++;
     }
     return Math.round((complete / cards.length) * 1000) / 10; // one decimal
   }, [cards, helpers]);
@@ -231,10 +223,11 @@ export function SummaryView() {
   const animatedRiskScore = useCountUpFormatted(riskScore * 10, 800); // animate to value*10 then divide by 10 for 1 decimal
   const animatedCompleteness = useCountUpFormatted(dataCompleteness * 10, 800);
 
-  // Bar click handler for drill-down
-  const handleBarClick = useCallback((data: { name?: string }) => {
+  // Bar click handler for drill-down by affiliate — reuses the existing
+  // free-text search drill-down channel (Dashboard search matches any
+  // mapped value, including affiliate name).
+  const handleAffiliateBarClick = useCallback((data: { name?: string }) => {
     if (data?.name) {
-      // Store the facility name in sessionStorage and navigate to dashboard
       try {
         sessionStorage.setItem('rssb_drilldown_facility', data.name);
       } catch { /* ignore if sessionStorage unavailable */ }
@@ -254,7 +247,6 @@ export function SummaryView() {
       'high-value': [5, 15],
       'missing-amounts': [3, 8],
       'missing-dates': [3, 8],
-      'missing-facility': [3, 8],
       'missing-patient': [3, 8],
       'duplicate-vouchers': [2, 5],
       'amount-outliers': [2, 5],
@@ -341,8 +333,7 @@ export function SummaryView() {
         <StatCard icon={<Calendar className="w-4 h-4" />} label="Date range" value={dateLabel} small />
         <StatCard icon={<Coins className="w-4 h-4" />} label="Total cost" value={stats.amountCount ? stats.totalAmount.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—'} />
         <StatCard icon={<Users className="w-4 h-4" />} label="Unique patients" value={stats.patients.toLocaleString()} />
-        <StatCard icon={<Building2 className="w-4 h-4" />} label="Unique facilities" value={stats.facilities.toLocaleString()} />
-        <StatCard icon={<Stethoscope className="w-4 h-4" />} label="Unique doctors" value={stats.doctors.toLocaleString()} />
+        <StatCard icon={<Building2 className="w-4 h-4" />} label="Unique affiliates" value={stats.affiliates.toLocaleString()} />
       </div>
 
       {stats.missingAmount > 0 && (
@@ -357,27 +348,20 @@ export function SummaryView() {
 
       {/* Interactive charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-        <ChartCard
-          title="Vouchers per facility"
-          subtitle={
-            <span className="inline-flex items-center gap-1">
-              Top 8 facilities by voucher count <Search className="w-3 h-3" aria-hidden="true" /> Click a bar to filter Dashboard by facility
-            </span>
-          }
-        >
-          {facilityData.length === 0 ? (
+        <ChartCard title="Amounts billed by act" subtitle="Total billed amount per medical act across all vouchers">
+          {actAmountsData.length === 0 ? (
             <EmptyChart />
           ) : (
             <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={facilityData} layout="vertical" margin={{ left: 10, right: 20 }}>
+              <BarChart data={actAmountsData} layout="vertical" margin={{ left: 10, right: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis type="number" className="text-xs" tick={{ fontSize: 11 }} />
                 <YAxis type="category" dataKey="name" width={120} className="text-xs" tick={{ fontSize: 11 }} />
                 <Tooltip
                   contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
-                  formatter={(v: number, n: string) => n === 'count' ? [`${v} vouchers`, 'Count'] : [`RWF ${v.toLocaleString()}`, 'Total']}
+                  formatter={(v: number) => [`RWF ${v.toLocaleString()}`, 'Billed']}
                 />
-                <Bar dataKey="count" fill={CHART_COLORS[0]} radius={[0, 4, 4, 0]} name="count" cursor="pointer" onClick={handleBarClick} />
+                <Bar dataKey="total" fill={CHART_COLORS[0]} radius={[0, 4, 4, 0]} name="total" />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -415,20 +399,28 @@ export function SummaryView() {
           )}
         </ChartCard>
 
-        <ChartCard title="Patient type breakdown" subtitle="Affiliation type distribution">
-          {patientTypeData.length === 0 ? (
+        <ChartCard
+          title="Patients by affiliate"
+          subtitle={
+            <span className="inline-flex items-center gap-1">
+              Top 8 affiliates by patient/voucher count <Search className="w-3 h-3" aria-hidden="true" /> Click a bar to filter Dashboard
+            </span>
+          }
+        >
+          {affiliateData.length === 0 ? (
             <EmptyChart />
           ) : (
             <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie data={patientTypeData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} innerRadius={45} label={(e: { name: string }) => e.name}>
-                  {patientTypeData.map((_, i) => (
-                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-              </PieChart>
+              <BarChart data={affiliateData} layout="vertical" margin={{ left: 10, right: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                <XAxis type="number" className="text-xs" tick={{ fontSize: 11 }} />
+                <YAxis type="category" dataKey="name" width={120} className="text-xs" tick={{ fontSize: 11 }} />
+                <Tooltip
+                  contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
+                  formatter={(v: number, n: string) => n === 'count' ? [`${v} vouchers`, 'Count'] : [`RWF ${v.toLocaleString()}`, 'Total']}
+                />
+                <Bar dataKey="count" fill={CHART_COLORS[2]} radius={[0, 4, 4, 0]} name="count" cursor="pointer" onClick={handleAffiliateBarClick} />
+              </BarChart>
             </ResponsiveContainer>
           )}
         </ChartCard>

@@ -114,7 +114,7 @@ export function MatchReviewView() {
           <div className="text-center max-w-md">
             <h3 className="text-sm font-semibold text-foreground">No matches found</h3>
             <p className="text-xs text-muted-foreground mt-1">
-              Upload hospital data and run matching to compare pharmacy claims against hospital records.
+              Upload hospital data and run matching to compare medical counter claims against hospital records.
               Matched records will appear here for review.
             </p>
           </div>
@@ -188,8 +188,8 @@ export function MatchReviewView() {
             <tr className="text-xs text-muted-foreground text-left border-b border-border">
               <th className="px-3 py-2 font-medium">Voucher #</th>
               <th className="px-3 py-2 font-medium">Voucher date</th>
-              <th className="px-3 py-2 font-medium">Pharmacy patient</th>
-              <th className="px-3 py-2 font-medium">Pharmacy ID</th>
+              <th className="px-3 py-2 font-medium">Voucher patient</th>
+              <th className="px-3 py-2 font-medium">Voucher ID</th>
               <th className="px-3 py-2 font-medium">Matched hospital record</th>
               <th className="px-3 py-2 font-medium">Score</th>
               <th className="px-3 py-2 font-medium">Evidence</th>
