@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import * as XLSX from 'xlsx-js-style';
 import { useSessionStore } from '@/store/session-store';
 import { useCardHelpers } from './use-card-helpers';
-import { emptyCounterHeader, CLASSIFICATION_DEFS } from '@/lib/rssb/config';
+import { emptyCounterHeader, MEDICAL_ACT_DEFS } from '@/lib/rssb/config';
 import { buildCounterReportWorkbook } from '@/lib/rssb/reportGenerators';
 import type { Card, CounterHeader } from '@/lib/rssb/types';
 import {
@@ -14,7 +14,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
-type CatFilter = 'all' | 'pharma' | 'rssb' | 'fraud';
+type CatFilter = 'all' | 'fraud';
 type MatchCatFilter = 'all' | 'clean' | 'review' | 'fraud_risk' | 'orphan';
 
 /* ---------- Sub-components ---------- */
@@ -65,10 +65,8 @@ function StatPill({ label, value, icon, className = '' }: { label: string; value
 
 function CategoryDot({ card }: { card: Card }) {
   const cls = card.classifications;
-  if (cls.fraud) return <span className="inline-block w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" title="Fraud" />;
-  if (cls.rssb) return <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" title="RSSB rules" />;
-  if (cls.pharma) return <span className="inline-block w-2.5 h-2.5 rounded-full bg-teal-500 shrink-0" title="Pharma compliance" />;
-  return <span className="inline-block w-2.5 h-2.5 rounded-full bg-muted-foreground/30 shrink-0" title="Unclassified" />;
+  if (cls.fraud) return <span className="inline-block w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" title="Flagged as fraud" />;
+  return <span className="inline-block w-2.5 h-2.5 rounded-full bg-muted-foreground/30 shrink-0" title="Not flagged" />;
 }
 
 /**
@@ -117,26 +115,40 @@ function CounterReportDocument({
             <th className="border border-black px-2 py-1.5 font-bold text-left w-[4%]">#</th>
             <th className="border border-black px-2 py-1.5 font-bold text-left w-[12%]">N° BEN.</th>
             <th className="border border-black px-2 py-1.5 font-bold text-left w-[14%]">RAMA Number</th>
+            <th className="border border-black px-2 py-1.5 font-bold text-left w-[14%]">Act</th>
             <th className="border border-black px-2 py-1.5 font-bold text-right w-[14%]">Deduction</th>
             <th className="border border-black px-2 py-1.5 font-bold text-left">Explanation of deduction</th>
           </tr>
         </thead>
         <tbody>
           {filtered.map((c, i) => {
-            const deduction = parseFloat(String(c.deduction)) || 0;
-            return (
-              <tr key={c.id} className="align-top">
-                <td className="border border-black px-2 py-1.5">{i + 1}</td>
-                <td className="border border-black px-2 py-1.5 font-medium">{helpers.voucherOf(c) || '—'}</td>
-                <td className="border border-black px-2 py-1.5">{String(helpers.mappedValue(c, 'rama_number') || '—')}</td>
-                <td className="border border-black px-2 py-1.5 text-right tabular-nums">{deduction ? `-${deduction.toLocaleString()}` : '—'}</td>
-                <td className="border border-black px-2 py-1.5">{c.explanation || c.comment || '—'}</td>
+            // Each medical act with its own deduction gets its own row; the
+            // #, beneficiary and RAMA number are merged (rowSpan) so every
+            // deduction line for this voucher still reads as one block.
+            const actRows = MEDICAL_ACT_DEFS
+              .filter(def => (Number(c.actDeductions?.[def.key]) || 0) > 0)
+              .map(def => ({ label: def.label, amount: Number(c.actDeductions?.[def.key]) || 0, reason: c.actReasons?.[def.key] || '' }));
+            if (actRows.length === 0) {
+              actRows.push({ label: 'General', amount: parseFloat(String(c.deduction)) || 0, reason: c.explanation || c.comment || '' });
+            }
+            return actRows.map((act, j) => (
+              <tr key={`${c.id}-${j}`} className="align-top">
+                {j === 0 && (
+                  <>
+                    <td className="border border-black px-2 py-1.5" rowSpan={actRows.length}>{i + 1}</td>
+                    <td className="border border-black px-2 py-1.5 font-medium" rowSpan={actRows.length}>{helpers.voucherOf(c) || '—'}</td>
+                    <td className="border border-black px-2 py-1.5" rowSpan={actRows.length}>{String(helpers.mappedValue(c, 'rama_number') || '—')}</td>
+                  </>
+                )}
+                <td className="border border-black px-2 py-1.5">{act.label}</td>
+                <td className="border border-black px-2 py-1.5 text-right tabular-nums">{act.amount ? `-${act.amount.toLocaleString()}` : '—'}</td>
+                <td className="border border-black px-2 py-1.5">{act.reason || '—'}</td>
               </tr>
-            );
+            ));
           })}
           {filtered.length === 0 && (
             <tr>
-              <td colSpan={5} className="border border-black px-3 py-6 text-center text-gray-500">
+              <td colSpan={6} className="border border-black px-3 py-6 text-center text-gray-500">
                 No vouchers currently have a deduction matching the filter.
               </td>
             </tr>
@@ -145,7 +157,7 @@ function CounterReportDocument({
         {filtered.length > 0 && (
           <tfoot>
             <tr className="font-bold">
-              <td className="border-2 border-black px-2 py-1.5" colSpan={3}>Total</td>
+              <td className="border-2 border-black px-2 py-1.5" colSpan={4}>Total</td>
               <td className="border-2 border-black px-2 py-1.5 text-right tabular-nums">{totalDiff ? `-${Math.abs(totalDiff).toLocaleString()}` : '0'}</td>
               <td className="border-2 border-black px-2 py-1.5"></td>
             </tr>
@@ -418,7 +430,7 @@ export function CounterVerificationView() {
                     value={header[posKey]}
                     onChange={e => setCounterHeader(h => ({ ...h, [posKey]: e.target.value }))}
                     className="w-full border border-border rounded-lg px-2.5 py-1.5 text-sm bg-muted focus:bg-background transition-colors"
-                    placeholder="e.g. Pharmacist in Charge"
+                    placeholder="e.g. Officer in Charge"
                   />
                 </div>
               </div>
@@ -478,8 +490,8 @@ export function CounterVerificationView() {
               <div>
                 <label className="text-[10px] text-muted-foreground block mb-0.5">Category</label>
                 <select value={catFilter} onChange={e => setCatFilter(e.target.value as CatFilter)} className="w-full text-xs border border-border rounded-lg px-2.5 py-1.5 bg-muted focus:bg-background transition-colors">
-                  <option value="all">All categories</option>
-                  {CLASSIFICATION_DEFS.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+                  <option value="all">All vouchers</option>
+                  <option value="fraud">Flagged as fraud</option>
                 </select>
               </div>
               {matchResults && (

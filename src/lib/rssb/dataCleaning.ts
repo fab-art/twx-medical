@@ -3,24 +3,17 @@
 import { normalizeId, normalizeSex } from './matching';
 import type { Card, CleaningChange, FieldKey, Mapping } from './types';
 
+// Normalization is limited to the mapped counter-verification columns
+// (see FIELD_DEFS in config.ts).
 export const FIELD_CLEAN_TYPES: Partial<Record<FieldKey, string>> = {
   voucher_no: 'text',
   visit_date: 'date',
-  dispensing_date: 'date',
   patient_name: 'name',
-  patient_type: 'text',
   gender: 'sex',
-  is_newborn: 'text',
   rama_number: 'id',
   affiliate_name: 'name',
-  doctor_name: 'name',
-  practitioner_type: 'text',
-  facility_name: 'name',
   amount: 'amount',
-  patient_copayment: 'amount',
   insurance_copayment: 'amount',
-  difference: 'amount',
-  observation: 'text',
 };
 
 const MONTHS: Record<string, number> = {

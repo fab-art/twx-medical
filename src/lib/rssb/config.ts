@@ -5,25 +5,22 @@ import type {
 export const APP_NAME = 'RSSB Medical Counter Verification System';
 export const SAVE_DEBOUNCE_MS = 1200;
 
+// Mapping is intentionally limited to the columns the medical counter
+// verification workflow actually uses. Processing date, newborn flag,
+// beneficiary type, practitioner/doctor & type, health facility, patient
+// co-payment, difference and observation were dropped from the mapping UI
+// (and, correspondingly, from the normalization engine below) per RSSB
+// counter verification scope.
 export const FIELD_DEFS: FieldDef[] = [
   { key: 'voucher_no', label: 'Voucher No / N°', guesses: ['voucher', 'papercode', 'voucheridentification', 'voucherno', 'n0', 'no'] },
   { key: 'visit_date', label: 'Voucher / Service Date', guesses: ['date', 'visitdate', 'voucherdate', 'servicedate'] },
-  { key: 'dispensing_date', label: 'Processing Date', guesses: ['processingdate', 'dispensingdate', 'dispatchdate'] },
   { key: 'patient_name', label: 'Beneficiary Name', guesses: ['benef', 'beneficiary', 'patientname', 'patient', 'name'] },
-  { key: 'patient_type', label: 'Beneficiary Type / Affiliation', guesses: ['affiliate', 'patienttype', 'affiliation', 'affiliates'] },
   { key: 'gender', label: 'Sex / Gender', guesses: ['benef', 'sex', 'gender'] },
-  { key: 'is_newborn', label: 'Is Newborn', guesses: ['newborn', 'isnewborn'] },
   { key: 'patient_age', label: 'Beneficiary Age / DOB', guesses: ['age', 'dob', 'dateofbirth'] },
   { key: 'rama_number', label: 'Beneficiary Affiliation Number', guesses: ['benefaff', 'affiliationnumber', 'aff', 'rama', 'memberid'] },
   { key: 'affiliate_name', label: "Affiliate's Name", guesses: ['affiliates', 'affiliatename'] },
-  { key: 'doctor_name', label: 'Practitioner / Doctor', guesses: ['practitioner', 'doctor', 'provider', 'physician'] },
-  { key: 'practitioner_type', label: 'Practitioner Type', guesses: ['practitionertype', 'pract'] },
-  { key: 'facility_name', label: 'Health Facility', guesses: ['facility', 'healthfacility', 'polyclinique', 'hospital'] },
   { key: 'amount', label: 'Total Billed Amount', guesses: ['total', 'totalcost', 'totalbill', 'amount', 'grandtotal'] },
-  { key: 'patient_copayment', label: 'Patient Co-payment', guesses: ['patientcopayment', 'copayment', 'copay'] },
   { key: 'insurance_copayment', label: 'Insurance / RSSB Amount', guesses: ['rssb', 'insurance', 'covered', 'reimbursement'] },
-  { key: 'difference', label: 'Difference', guesses: ['difference', 'diff'] },
-  { key: 'observation', label: 'Observation / Comment', guesses: ['observation', 'comment', 'remark'] },
 ];
 
 export const MEDICAL_ACT_DEFS = [
