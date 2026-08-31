@@ -1,27 +1,12 @@
-# Deploy to Vercel
+# Vercel deployment
 
-This project is a static Vite + React PWA. No API routes, database or environment variables are required for the core workflow.
+This repository is a static Vite PWA. Vercel does not need a server function or database for the verification workflow.
 
-## Vercel
-1. Push the repository to GitHub.
-2. Import it into Vercel.
-3. Leave the Root Directory at the repository root.
-4. Build command: `npm run build`.
-5. Output directory: `dist`.
-6. Install command: `npm install`.
+- Framework preset: Vite (or Other)
+- Build command: `npm run build`
+- Output directory: `dist`
+- Install command: `npm install`
 
-The included `vercel.json` already configures these values and the SPA rewrite.
+The app stores session data in the browser via IndexedDB. This keeps operating cost low and allows work to continue offline after the app shell/assets have been cached.
 
-## Local
-```bash
-npm install
-npm run dev
-```
-
-## Production check
-```bash
-npm run build
-npm run preview
-```
-
-The application keeps verification sessions in IndexedDB, so the same browser/device retains its work and the PWA remains usable offline after its assets have been cached.
+For GitHub deployment, upload the repository contents under `twx-main` (or set that directory as the Vercel root directory).
